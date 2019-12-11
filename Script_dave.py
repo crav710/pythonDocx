@@ -307,7 +307,7 @@ def replaceIftext(list_df,block_text,i):
 	return (''.join(text_replace))
 
 
-def find_and_replace_if_tags(list_df,document,i)
+def find_and_replace_if_tags(list_df,document,i):
 	"""
 	Performs processing for IF-ELSE-ENDIF tags and FILE tags.  Produces
 	a data structure reflecting the content of an output Word file prior
@@ -669,9 +669,12 @@ def preprocess_files(input_wordfile,list_df):
 				pass
 			else:
 				break	
-
-		# [[FILE...]] tag replacement is complete so return resulting Document instance
-		return document
+#  This code your wrote is not correct  since it returns the first instance of the document. what the idea here is to save each file we open we save it so that the next time we read it 
+#  we hve the updted one. If we return from here then the function won't get completed.
+		# # [[FILE...]] tag replacement is complete so return resulting Document instance
+		# return document
+		document.save(filepath)
+	# return document
 
 def validatesheetnames(sheet_names):
 	if sheet_names[0]=='GLOBALS' and sheet_names[1]=='TEXT' and sheet_names[2]=='IMAGE' and sheet_names[3]=='FILE':
@@ -719,7 +722,7 @@ def validate_excel():
 	TO DO 
 	"""
 
-def replace_text_tags(list_df,document,index):
+def replace_text_tags(list_df,document,index,target_file):
 	"""
 	Replaces [[TEXT:<identifier>]] tags with text corresponding to the identifier
 	as specified in the TEXT worksheet and for the current index.  Uses the
@@ -772,27 +775,18 @@ def replace_text_tags(list_df,document,index):
 
 					# Recreate tag so it can be replaced easily in Paragraph instance
 					tag_d='[[TEXT:'+identifier+']]' # Question2: will this later include comment parsing?
-					# print('Tag ID : ',tag_d)
+					#  try catch Required to avoid key error in pandas and is used to validate and detect invalid tag.If you want to change it we can discuss 
+					try:
+						# print('Tag ID : ',tag_d)
+						text_rep=list(list_df[1][identifier])[index]
+						# print('text_rep: ',text_rep)
 
-					# Retrieve text content from [1] element in Pandas data frame
-					# and from the column identified by identifier and from the row
-					# identified by the index
-					text_rep=list(list_df[1][identifier])[index]  # Consider validating table format and content
-					# print('text_rep: ',text_rep)
-
-					# Now replace the text for the [[TEXT...]] tag with its textual result.
-					# Question1: won't this approach cause any formatting within the paragraph,
-					# that precedes or follows the tag to be replaced, to be lost?  For example,
-					# if the paragraph is "<bold>asdfasd<italics>39293[[TEXT:text1]]</italics></bold>end" the
-					# paragraph after tag replacement, if text1="_hello_", would be
-					# "asdfasd39293_hello_end" rather than
-					# "<bold>asdfasd<italics>39293[[TEXT:text1]]</italics></bold>end"
-					# In other words, we probably need to do the replacement on a Run-level not
-					# a Paragraph-level to get the right result if formatting changes somewhere
-					# in the Paragraph (although we know formatting cannot change within a tag)
-					block.text=block_text.replace(tag_d,text_rep)
-					# print('bt ',block.text)
-					block_text=block.text
+						# Replace [[TEXT...]] tag with its corresponding text
+						# from TEXT worksheet
+						block_text=block_text.replace(tag_d,text_rep)
+						# print('block_text: ',block_text)
+					except Exception as e:
+						print('Error the Tag {} is not present in the Excel Sheet.'.format(tag_d))
 			else:
 				# No [[TEXT...]] tag present in paragraph
 				pass
@@ -835,14 +829,19 @@ def replace_text_tags(list_df,document,index):
 
 								# Create a string with only the [[TEXT...]] tag
 								tag_d='[[TEXT:'+identifier+']]'
-								# print('Tag ID : ',tag_d)
-								text_rep=list(list_df[1][identifier])[index]
-								# print('text_rep: ',text_rep)
+								#  try catch Required to avoid key error in pandas and is used to validate and detect invalid tag.If you want to change it we can discuss 
+								try:
+									# print('Tag ID : ',tag_d)
+									text_rep=list(list_df[1][identifier])[index]
+									# print('text_rep: ',text_rep)
 
-								# Replace [[TEXT...]] tag with its corresponding text
-								# from TEXT worksheet
-								block_text=block_text.replace(tag_d,text_rep)
-								# print('block_text: ',block_text)
+									# Replace [[TEXT...]] tag with its corresponding text
+									# from TEXT worksheet
+									block_text=block_text.replace(tag_d,text_rep)
+									# print('block_text: ',block_text)
+								except Exception as e:
+									print('Error the Tag {} is not present in the Excel Sheet.'.format(tag_d))
+
 
 							# Store resulting plain text within Paragraph instance
 							# Question6: this approach will remove all formatting information
@@ -854,7 +853,9 @@ def replace_text_tags(list_df,document,index):
 
 	# Return Document instance to caller so next processings step can build on
 	# this result
+		document.save(target_file)
 	return document
+
 
 def insert_image_after(run,image,img_width=-1,img_height=-1):
 	"""
@@ -914,6 +915,11 @@ def insert_run_after(paragraph, text, style=None):
 
 	# Add text to new Paragraph instance as a new Run instance
 	new_para.add_run(text)
+def delete_paragraph(paragraph):
+    p = paragraph._element
+    p.getparent().remove(p)
+    p._p = p._element = None
+
 
 def replace_image_tag(list_df,document,index):
 	"""
@@ -937,80 +943,55 @@ def replace_image_tag(list_df,document,index):
 
 		# Process block as paragraph if current block is an instance of Paragraph
 		if isinstance(block, Paragraph):
-
-			## NOT USED
 			# Extract unformatted text from Paragraph instance
-			#block_text=block.text
+			block_text=block.text
+			
+			if '[[IMAGE:' in block.text:
+				# Iterate through each Run within current block
+				# (a Paragraph instance)
+				for run in block.runs:
+					# print('run : ',run.text)
+					try:
+						# Determine whether [[IMAGE:<identifier>(optional-comment)]] is present
+						if '[[IMAGE:' in run.text:
+							# At least one [[IMAGE...]] tag is present so find substrings for
+							# the one or more [[IMAGE...]] tags in the current run.  Returns
+							# a list of substrings separated on '[[IMAGE:'' such that the 0th
+							# element is the string preceding the first [[IMAGE...]] tag, the
+							# 1st element is text after [[IMAGE: until the start of the next
+							# [[IMAGE...]] tag or the end of line, repeating thereafter.  Thus,
+							# the first characters in the first element are the identifier and
+							# optional comment for the [[IMAGE...]] tag
 
-			# Iterate through each Run within current block
-			# (a Paragraph instance)
-			for run in block.runs:
-				# print('run : ',run.text)
-				try:
-
-					# Determine whether [[IMAGE:<identifier>(optional-comment)]] is present
-					if '[[IMAGE:' in run.text:
-
-						# At least one [[IMAGE...]] tag is present so find substrings for
-						# the one or more [[IMAGE...]] tags in the current run.  Returns
-						# a list of substrings separated on '[[IMAGE:'' such that the 0th
-						# element is the string preceding the first [[IMAGE...]] tag, the
-						# 1st element is text after [[IMAGE: until the start of the next
-						# [[IMAGE...]] tag or the end of line, repeating thereafter.  Thus,
-						# the first characters in the first element are the identifier and
-						# optional comment for the [[IMAGE...]] tag
-						image_items=(run.text).split('[[IMAGE:')
-
-						# print('image_items: ',image_items)
-
-						# Iterate through each [[IMAGE...]] tag, after skipping text preceding
-						# the initial [[IMAGE...]] tag (the 1: expression)
-						for image in image_items[1:]:
-							# print('split image : ',image.split(']]'))
-
-							# create an [[IMAGE:<identifier>]] tag as string
-							# from the text to the left of the closing double brackets
-							image_tag='[[IMAGE:'+image.split(']]')[0]+']]'
-
-							# Retrieve image's <identifier> from current "[[IMAGE:<identifier>" string
-							idd=image.split(']]')[0]
-
-							# Remove "<identifier>]]" from image string by replacing with ""
-							text_add=image.replace((idd+']]'),'')
-
-							# print('text_add: ' ,text_add)
-
-							# Retrieve filepath for image from Pandas dataframe for the
-							# IMAGES worksheet and current iterator value
-							img_path=list(list_df[2][idd])[index]
-
-							# Retrieve image width (similarly to filepath)
-							img_width=list(list_df[2][idd+'_width'])[index]
-
-							# Retrieve image height (similarly to filepath)
-							img_height=list(list_df[2][idd+'_height'])[index]
-
-							# Now remove the tag from the current run, which has
-							# consistent formatting by design (our rule is no
-							# formatting changes within a tag)
-							run.text=(run.text).replace(image_tag,'')
-							# print('RUN TEXT',run.text)
-
-							# NOT SURE THAT THIS LINE IS NEEDED
-							run.text=(run.text).replace(text_add,'')
-
-							# Insert image into current Run instance
-							insert_image_after(run,img_path,img_width,img_height)
-
-							# Adds the provided text, as a new Run instance,
-							# to the provided Paragraph instance
-							insert_run_after(block,text_add)
-				except Exception as e:
-					print(e)
-					# print('Image Tag does not fall under  Run.')
-					# run.text=''
-			# print('bt ',block_text)
-
+							image_items=(run.text).split('[[IMAGE:')
+							# print('image_items: ',image_items)
+							new_p = OxmlElement("w:p")
+							block._p.addnext(new_p)
+							new_para = Paragraph(new_p, block._parent)
+							new_para.add_run(image_items[0])				
+							for image in image_items[1:]:
+								# print('split image : ',image.split(']]'))
+								image_tag='[[IMAGE:'+image.split(']]')[0]+']]'
+								idd=image.split(']]')[0]
+								text_add=image.replace((idd+']]'),' ')
+								# print('text_add: ' ,text_add)
+								try:
+									img_path=list(list_df[2][idd])[index]
+									img_width=list(list_df[2][idd+'_width'])[index]
+									img_height=list(list_df[2][idd+'_height'])[index]
+									insert_image_after(new_para.add_run(),img_path,img_width,img_height)
+									new_para.add_run(text_add)
+								except Exception as e:
+									print(e)
+									new_para.add_run(text_add)
+									# block.text=(block.text).replace(text_add,'')
+									# print('ErrorPar: ',str(e))
+									print('Error the Tag {} is not present in the Excel Sheet.'.format(image_tag))	
+					except Exception as e:
+						# print('ErrorPar: ',str(e))
+						print('Image Tag does not fall under  Run.')
+						# run.text=''
+				delete_paragraph(block)
 		# Process block as table if current block is an instance of Table
 		elif isinstance(block, Table):
 			# Iterate through each Row instance within the Table
@@ -1020,84 +1001,44 @@ def replace_image_tag(list_df,document,index):
 					# Iterate through each Paragraph instance within the Cell
 					for paragraph in cell.paragraphs:
 						# Extract unformatted text from Paragraph instance
-						# NOTE: not used
-						#block_text=paragraph.text
-
-						# Iterate through each Run instance within Paragraph instance
-						for run in paragraph.runs:
-							# print('run: ',run.text)
-							try:
-
-								# Future project: break logic below into function that is
-								# called for Paragraph instances and Table instances
-
-								# Detect presence of [[IMAGE...]] tag in current block
-								if '[[IMAGE:' in run.text:
-									# [[IMAGE...]] tag found so parse it
-
-									# Create a list of substrings, the first of which
-									# ends just before the first [[IMAGE:...]] tag, and
-									# the remainder of which begins at the start of each
-									# [[IMAGE...]] tag
-									image_items=(run.text).split('[[IMAGE:')
-									# print('image_items: ',image_items)
-
-									# NOTE THAT THIS CODE REPEATS FUNCTIONALITY FOR PARAGRAPHS
-
-									# Iterate through [[IMAGE...]] tag parsing
-									# results, starting from index 1 because
-									# the first substring precedes the first
-									# [[IMAGE...]] tag
-									for image in image_items[1:]:
-										# print('split image : ',image.split(']]'))
-
-										# Create a string with only the [[IMAGE...]] tag
-										image_tag='[[IMAGE:'+image.split(']]')[0]+']]'
-
-										# Retrieve the identifier from the parsing
-										# result, which ends in ]]
-										idd=image.split(']]')[0]
-
-										# Remove the [[IMAGE...]] tag from the current
-										# parsing result, which could have text after the
-										# end of the [[IMAGE...]] tag if that tag is the
-										# last such tag in image_items
-										text_add=image.replace((idd+']]'),'')
-
-										# print('text_add: ' ,text_add)
-
-										# Retrieve filepath for image from Pandas dataframe
-										# reflecting IMAGE worksheet data
-										img_path=list(list_df[2][idd])[index]
-
-										# Retrieve image width and height for image from
-										# Pandas dataframe reflecting IMAGE worksheet data
-										img_width=list(list_df[2][idd+'_width'])[index]
-										img_height=list(list_df[2][idd+'_height'])[index]
-
-										# Retrieve text for current Run instance, which
-										# has a consistent format because it is a Run instance,
-										# and replace the [[IMAGE...]] tag with an empty
-										# string, thereby removing the tag from the Run
-										run.text=(run.text).replace(image_tag,'')
-
-
-										# print('RUN TEXT',run.text)
-										# Question5: is the next line redundant?
-										run.text=(run.text).replace(text_add,'')
-
-										# Add image to new Run instance
-										insert_image_after(run,img_path,img_width,img_height)
-
-										# insert new Run instance to end of Paragraph instance
-										insert_run_after(block,text_add)
-							except Exception as e:
-								#ll=0
-								# print('Image Tag Doesnt fall under run ')
+						block_text=paragraph.text
+						if '[[IMAGE:' in paragraph.text:
+							for run in paragraph.runs:
+								# print('run: ',run.text)
+								try:
+									if '[[IMAGE:' in run.text:
+										image_items=(run.text).split('[[IMAGE:')
+										# print('image_items: ',image_items)
+										new_p = OxmlElement("w:p")
+										paragraph._p.addnext(new_p)
+										new_para = Paragraph(new_p, paragraph._parent)
+										new_para.add_run(image_items[0])
+										for image in image_items[1:]:
+											# print('split image : ',image.split(']]'))
+											image_tag='[[IMAGE:'+image.split(']]')[0]+']]'
+											idd=image.split(']]')[0]
+											text_add=image.replace((idd+']]'),' ')
+											# print('text_add: ' ,text_add)
+											try:
+												img_path=list(list_df[2][idd])[index]
+												img_width=list(list_df[2][idd+'_width'])[index]
+												img_height=list(list_df[2][idd+'_height'])[index]
+												insert_image_after(new_para.add_run(),img_path,img_width,img_height)
+												new_para.add_run(text_add)
+											except Exception as e:
+												print(e)
+												new_para.add_run(text_add)
+												# block.text=(block.text).replace(text_add,'')
+												# print('ErrorPar: ',str(e))
+												print('Error the Tag {} is not present in the Excel Sheet.'.format(image_tag))	
+								except Exception as e:							
+									# print('ErrorTable: ',str(e))
+									print('Image Tag Doesnt fall under run ')
+							delete_paragraph(paragraph)
 
 	return document # with modifications
 
-def process_document(list_df,preprocessed_document,index):
+def process_document(list_df,preprocessed_document,index,target_file):
 	"""
 	Receives a Document instance that has been preprocessed (all [[FILE...]]
 	and [[IF...]] tags have been replaced) and processes that Document
@@ -1120,17 +1061,15 @@ def process_document(list_df,preprocessed_document,index):
 	print("Warning: IF tag processing is commented out")
 	# NOTE - commenting this out because [[IF...]] tag processing
 	# is not ready
-	# document = find_and_replace_if_tags(list_df,preprocessed_document,index)
+	document = find_and_replace_if_tags(list_df,preprocessed_document,index)
 
 	# Parse Document instance for TEXT tags and replace those
 	# tags with appropriate text
-	document_after_text_tag_replacement = \
-		replace_text_tags(list_df,preprocessed_document,index)
+	document_after_text_tag_replacement = replace_text_tags(list_df,preprocessed_document,index,target_file)
 
 	# Parse Document instance for IMAGE tags and replace those
 	# tags with appropriate image content
-	document_after_image_tag_replacement = \
-		replace_image_tag(list_df,document_after_text_tag_replacement,index)
+	document_after_image_tag_replacement = replace_image_tag(list_df,document_after_text_tag_replacement,index)
 
 	return document_after_image_tag_replacement
 
@@ -1174,13 +1113,14 @@ if __name__ == '__main__':
 		preprocessed_document = preprocess_files(input_wordfile,list_df)
 		
 		print('Iteration ',index+1)
+		## Retrieve name of current Word file to be created
+		file_target = target_files[index]
 		
 		# Find and operate on [[IMAGE...]] and [[TEXT...] tags to
 		# produce a modified Document instance
-		processed_document = process_document(list_df,preprocessed_document,index)
+		preprocessed_document=Document(input_wordfile)
+		processed_document = process_document(list_df,preprocessed_document,index,file_target)
 
-		## Retrieve name of current Word file to be created
-		file_target = target_file[index]
 
 		# Now save the result as the target Word file
 		processed_document.save(file_target)
