@@ -451,7 +451,6 @@ def replace_image_tag(list_df,input_wordfile,target_file,i):
 	for block in iter_block_items(document):
 		if isinstance(block, Paragraph):
 			block_text=block.text
-			
 			if '[[IMAGE:' in block.text:
 				for run in block.runs:
 					# print('run : ',run.text)
