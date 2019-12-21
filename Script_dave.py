@@ -184,7 +184,6 @@ def getallfiles(list_df):
 	return unique_total_files
 
 def evaluateTag(list_df,tag,i):
-
 	glob_df=list_df[0]
 	tag_data = (tag.split(':')[1]).split(']]')[0]
 	if '(' in tag_data:
@@ -308,41 +307,120 @@ def replaceIftext(list_df,block_text,i):
 			dtect_tag=''
 	# print(text_replace)
 	return (''.join(text_replace))
+def replace_if_else(listdf,block,index):
+	#  This function will run x number of times. Where x is the nested level of tags.
 
+	while True:
+		if_count=0
+		else_count=0
+		runlist=[]
+		tag_eval='TRUE'
+		ignore_text=0
+		for run in block.runs:
+			# print('run : ',run.text)
+			try:
+				if '[[IF:' in run.text:
+					substring = (run.text).split('[[IF:')
+					identifier = substring.split(']]')[0]
+					if '(' in identifier:
+						identifier = identifier.split('(')[0]
+						comment = identifier.split('(')[1].split(')')[0]
+						tag = '[[IF:' + identifier + '(' + comment + ')' + ']]'
+					else:
+						tag = '[[IF:' + identifier + ']]'
+					if_count=if_count+1
+					if if_count==1:
+						tag_eval=evaluateTag(listdf,tag,index)
+						if tag_eval=='FALSE':
+							ignore_text=1
+					if tag_eval=='TRUE':
+						if if_count>1 and ignore_text==0:
+							runlist.append(run.text)
 
-def find_and_replace_if_tags(list_df,document,i,target_file):
-	"""
-	Performs processing for IF-ELSE-ENDIF tags and FILE tags.  Produces
-	a data structure reflecting the content of an output Word file prior
-	to replacing TEXT and IMAGE tags, if any, within that file
-	:param list_df: (list of Pandas dataframes) output from Pandas from reading Excel workbook
-	:param document: (python-docx.Document) Document instance
-	:param i: (integer) current iterator value (0...len-1)
-	:return: (python-docx.Document) a modified Document instance with
-	IF tags replaced with conditional content
-	"""
-	# tags_associated=['[[ELSE]]',]
+				elif '[[ELSE]]' in run.text:
+					else_count = else_count + 1
+					if else_count!=if_count:
+						if tag_eval=='TRUE' and ignore_text==0:
+							runlist.append(run.text)
+					else:
+						if tag_eval=='FALSE' and ignore_text==0:
+							runlist.append(run.text)
+						else:
+							ignore_text = 1
+				else:
+					if tag_eval=='TRUE' and ignore_text==0:
+						runlist.append(run.text)
+			except:
+				print('IF Tag no Present')
+		if if_count==0:
+			break
+	return runlist
 
-	# Iterate through paragraph and table entities within document
-	# through iter_block_items(), which emits python-docx Paragraph
-	# and Table instances for such entities
+def replace_nested_tags(listdf,filename,index,target_file):
+	document=Document(filename)
 	for block in iter_block_items(document):
-
 		if isinstance(block, Paragraph):
-			# current block is an instance of python-docx.Paragraph
-			block_text=block.text # retrieve unformatted text string
-			if '[[IF:' in block_text: # detect start of IF tag
-				# print('btt',block_text)
-
-				## ANALYSIS NOT ATTEMPTED
-				z=replaceIftext(list_df,block_text,i)
-				block.text=z
+			block_text=block.text
+			if '[[IF:' in block.text:
+				new_p = OxmlElement("w:p")
+				block._p.addnext(new_p)
+				new_para = Paragraph(new_p, block._parent)
+				run_list=replace_if_else(listdf,block,index)
+				for runs in run_list:
+					new_p.add_run(runs.text)
+				delete_paragraph(block)
 			# print('bt ',block_text)
-		else:
-			print("Current block is not a paragraph")
+		elif isinstance(block, Table):
+			for row in block.rows:
+				for cell in row.cells:
+					for paragraph in cell.paragraphs:
+						block_text=paragraph.text
+						if '[[IF:' in paragraph.text:
+							new_p = OxmlElement("w:p")
+							block._p.addnext(new_p)
+							new_para = Paragraph(new_p, block._parent)
+							run_list = replace_if_else(listdf, block, index)
+							for runs in run_list:
+								new_p.add_run(runs.text)
+							delete_paragraph(paragraph)
 
 	document.save(target_file)
-	return document
+
+
+
+# def find_and_replace_if_tags(list_df,document,i,target_file):
+# 	"""
+# 	Performs processing for IF-ELSE-ENDIF tags and FILE tags.  Produces
+# 	a data structure reflecting the content of an output Word file prior
+# 	to replacing TEXT and IMAGE tags, if any, within that file
+# 	:param list_df: (list of Pandas dataframes) output from Pandas from reading Excel workbook
+# 	:param document: (python-docx.Document) Document instance
+# 	:param i: (integer) current iterator value (0...len-1)
+# 	:return: (python-docx.Document) a modified Document instance with
+# 	IF tags replaced with conditional content
+# 	"""
+# 	# tags_associated=['[[ELSE]]',]
+#
+# 	# Iterate through paragraph and table entities within document
+# 	# through iter_block_items(), which emits python-docx Paragraph
+# 	# and Table instances for such entities
+# 	for block in iter_block_items(document):
+#
+# 		if isinstance(block, Paragraph):
+# 			# current block is an instance of python-docx.Paragraph
+# 			block_text=block.text # retrieve unformatted text string
+# 			if '[[IF:' in block_text: # detect start of IF tag
+# 				# print('btt',block_text)
+#
+# 				## ANALYSIS NOT ATTEMPTED
+# 				z=replaceIftext(list_df,block_text,i)
+# 				block.text=z
+# 			# print('bt ',block_text)
+# 		else:
+# 			print("Current block is not a paragraph")
+#
+# 	document.save(target_file)
+# 	return document
 
 
 def Document_data(document):
