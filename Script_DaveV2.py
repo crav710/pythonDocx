@@ -188,11 +188,12 @@ def evaluateTag(list_df, tag, i):  # CONFIRMED
 
 def replace_if_else(listdf, block, index):
     #  This function will run x number of times. Where x is the nested level of tags.
-
+    runlist=block.runs
     while True:
         if_count = 0
         else_count = 0
-        runlist = []
+        temp_list=[]
+        runlist = temp_list
         tag_eval = 'TRUE'
         ignore_text = 0
         for run in block.runs:
@@ -207,36 +208,37 @@ def replace_if_else(listdf, block, index):
                         tag = '[[IF:' + identifier + '(' + comment + ')' + ']]'
                     else:
                         tag = '[[IF:' + identifier + ']]'
-                    if_count = if_count + 1
-                    if if_count == 1:
-                        tag_eval = evaluateTag(listdf, tag, index)
-                        if tag_eval == 'FALSE':
-                            ignore_text = 1
-                    if tag_eval == 'TRUE':
-                        if if_count > 1 and ignore_text == 0:
-                            runlist.append(run.text)
-
+                    if tag==run.text:
+                        if_count = if_count + 1
+                        if if_count == 1:
+                            tag_eval = evaluateTag(listdf, tag, index)
+                            if tag_eval == 'FALSE':
+                                ignore_text = 1
+                        if tag_eval == 'TRUE':
+                            if if_count > 1 and ignore_text == 0:
+                                temp_list.append(run)
+                    else:
+                        print('Tag {} does not completely lie in a run.')
                 elif '[[ELSE]]' in run.text:
                     else_count = else_count + 1
                     if else_count != if_count:
                         if tag_eval == 'TRUE' and ignore_text == 0:
-                            runlist.append(run.text)
+                            temp_list.append(run)
                     else:
                         if tag_eval == 'FALSE' and ignore_text == 0:
-                            runlist.append(run.text)
+                            temp_list.append(run)
                         else:
                             ignore_text = 1
                 else:
                     if tag_eval == 'TRUE' and ignore_text == 0:
-                        runlist.append(run.text)
+                        temp_list.append(run)
             except:
                 print('IF Tag no Present')
         if if_count == 0:
             break
     return runlist
 
-
-def replace_nested_tags(listdf, filename, index, target_file):
+def replace_nested_tags(listdf, filename, index):
     document = Document(filename)
     for block in iter_block_items(document):
         if isinstance(block, Paragraph):
@@ -247,7 +249,8 @@ def replace_nested_tags(listdf, filename, index, target_file):
                 new_para = Paragraph(new_p, block._parent)
                 run_list = replace_if_else(listdf, block, index)
                 for runs in run_list:
-                    new_p.add_run(runs.text)
+                    sentence=new_p.add_run(runs.text)
+                    setAttributes(sentence,runs)
                 delete_paragraph(block)
         # print('bt ',block_text)
         elif isinstance(block, Table):
@@ -264,7 +267,7 @@ def replace_nested_tags(listdf, filename, index, target_file):
                                 new_p.add_run(runs.text)
                             delete_paragraph(paragraph)
 
-    document.save(target_file)
+    document.save(filename)
 
 
 
@@ -304,21 +307,125 @@ def identify_unformatted_runs_from_document(document):  # CONFIRMED2
     return unformatted_text_from_runs
 
 def setAttributes(sentence,current_run):
-    sentence.style=current_run.style
+    # sentence=current_run
+    # Setting style attributes
+    sentence.style.style_id=current_run.style.style_id
+    #  Setting Base Style :
+    try:
+        sentence.style.base_style.base_style = current_run.style.base_style.base_style
+        sentence.style.base_style.builtin = current_run.style.base_style.builtin
+        sentence.style.base_style.element = current_run.style.base_style.element
+        sentence.style.base_style.hidden = current_run.style.base_style.hidden
+        sentence.style.base_style.name = current_run.style.base_style.name
+        sentence.style.base_style.priority = current_run.style.base_style.priority
+        sentence.style.base_style.quick_style = current_run.style.base_style.quick_style
+        sentence.style.base_style.unhide_when_used = current_run.style.base_style.unhide_when_used
+        sentence.style.base_style.style_id = current_run.style.base_style.style_id
+
+        sentence.style.base_style.font.complex_script = current_run.style.base_style.font.complex_script
+        sentence.style.base_style.font.all_caps = current_run.style.base_style.font.all_caps
+        sentence.style.base_style.font.name = current_run.style.base_style.font.name
+        sentence.style.base_style.font.size = current_run.style.base_style.font.size
+        sentence.style.base_style.font.italic = current_run.style.base_style.font.italic
+        sentence.style.base_style.font.emboss = current_run.style.base_style.font.emboss
+        sentence.style.base_style.font.underline = current_run.style.base_style.font.underline
+        sentence.style.base_style.font.highlight_color = current_run.style.base_style.font.highlight_color
+        sentence.style.base_style.font.bold = current_run.style.base_style.font.bold
+        sentence.style.base_style.font.cs_bold = current_run.style.base_style.font.cs_bold
+        sentence.style.base_style.font.cs_italic = current_run.style.base_style.font.cs_italic
+        sentence.style.base_style.font.double_strike = current_run.style.base_style.font.double_strike
+        sentence.style.base_style.font.hidden = current_run.style.base_style.font.hidden
+        sentence.style.base_style.font.imprint = current_run.style.base_style.font.imprint
+        sentence.style.base_style.font.math = current_run.style.base_style.font.math
+        sentence.style.base_style.font.no_proof = current_run.style.base_style.font.no_proof
+        sentence.style.base_style.font.outline = current_run.style.base_style.font.outline
+        sentence.style.base_style.font.strike = current_run.style.base_style.font.strike
+        sentence.style.base_style.font.superscript = current_run.style.base_style.font.superscript
+        sentence.style.base_style.font.subscript = current_run.style.base_style.font.subscript
+        sentence.style.base_style.font.web_hidden = current_run.style.base_style.font.web_hidden
+        sentence.style.base_style.font.color.rgb = current_run.style.base_style.font.color.rgb
+        sentence.style.base_style.font.color.theme_color = current_run.style.base_style.font.color.theme_color
+
+    except:
+        print('Base Style Attributes not present.')
+    try:
+        sentence.style.builtin = current_run.style.builtin
+    except:
+        print('Builtin attribute not present.')
+
+    # sentence.style.element=current_run.style.element
+    sentence.style.hidden=current_run.style.hidden
+    sentence.style.name=current_run.style.name
+    sentence.style.priority=current_run.style.priority
+    sentence.style.quick_style=current_run.style.quick_style
+    sentence.style.unhide_when_used=current_run.style.unhide_when_used
+    #  Setting Style Font Attributes
+    # sentence.style.font=current_run.style.font
+    sentence.style.font.complex_script=current_run.style.font.complex_script
+    sentence.style.font.all_caps = current_run.style.font.all_caps
+    sentence.style.font.name = current_run.style.font.name
+    sentence.style.font.size=current_run.style.font.size
+    sentence.style.font.italic=current_run.style.font.italic
+    sentence.style.font.emboss=current_run.style.font.emboss
+    sentence.style.font.underline=current_run.style.font.underline
+    sentence.style.font.highlight_color=current_run.style.font.highlight_color
+    sentence.style.font.bold=current_run.style.font.bold
+    sentence.style.font.cs_bold = current_run.style.font.cs_bold
+    sentence.style.font.cs_italic = current_run.style.font.cs_italic
+    sentence.style.font.double_strike = current_run.style.font.double_strike
+    sentence.style.font.hidden = current_run.style.font.hidden
+    sentence.style.font.imprint = current_run.style.font.imprint
+    sentence.style.font.math = current_run.style.font.math
+    sentence.style.font.no_proof = current_run.style.font.no_proof
+    sentence.style.font.outline = current_run.style.font.outline
+    sentence.style.font.strike=current_run.style.font.strike
+    sentence.style.font.superscript=current_run.style.font.superscript
+    sentence.style.font.subscript = current_run.style.font.subscript
+    sentence.style.font.web_hidden=current_run.style.font.web_hidden
+    sentence.style.font.color.rgb=current_run.style.font.color.rgb
+    sentence.style.font.color.theme_color=current_run.style.font.color.theme_color
+
+
+
+    # Run high level attributes.
+
+    sentence.element = current_run.element
+    sentence.italic = current_run.italic
+    sentence.bold = current_run.bold
+    sentence.underline=current_run.underline
+    # sentence.part=current_run.part
+
+
+
+    # Font related attributes
+    sentence.font.complex_script=current_run.font.complex_script
+    sentence.font.all_caps = current_run.font.all_caps
     sentence.font.name = current_run.font.name
-    sentence.font.size=sentence.font.size
-    sentence.font.italic=sentence.font.italic
-    sentence.font.color.rgb=current_run.font.color.rgb
-    sentence.font.color.theme_color=sentence.font.color.theme_color
+    sentence.font.size=current_run.font.size
+    sentence.font.italic=current_run.font.italic
     sentence.font.emboss=current_run.font.emboss
-    sentence.font.size=sentence.font.size
     sentence.font.underline=current_run.font.underline
     sentence.font.highlight_color=current_run.font.highlight_color
     sentence.font.bold=current_run.font.bold
-    sentence.element = current_run.element
-    sentence.italic = current_run.italic
-    # sentence.part = current_run.part
-    sentence.bold = current_run.bold
+    sentence.font.cs_bold = current_run.font.cs_bold
+    sentence.font.cs_italic = current_run.font.cs_italic
+    sentence.font.double_strike = current_run.font.double_strike
+    sentence.font.hidden = current_run.font.hidden
+    sentence.font.imprint = current_run.font.imprint
+    sentence.font.math = current_run.font.math
+    sentence.font.no_proof = current_run.font.no_proof
+    sentence.font.outline = current_run.font.outline
+    sentence.font.strike=current_run.font.strike
+    sentence.font.superscript=current_run.font.superscript
+    sentence.font.subscript = current_run.font.subscript
+    sentence.font.web_hidden=current_run.font.web_hidden
+    # sentence.font.element=current_run.font.element
+
+#     color attributes
+    sentence.font.color.rgb=current_run.font.color.rgb
+    sentence.font.color.theme_color=current_run.font.color.theme_color
+    # sentence.font.color.type = current_run.font.color.type
+
 
 def replace_file_tags(dataframes,
                       document,
@@ -478,7 +585,7 @@ def replace_file_tags(dataframes,
                                     for current_run in runs_for_filepath:
                                         # Add the current unformatted text, as a Run
                                         # instance, to the new Paragraph instance
-                                        sentence=new_paragraph.add_run(current_run.text,style=current_run.style)
+                                        sentence=new_paragraph.add_run(current_run.text)
                                         setAttributes(sentence,current_run)
 
 
@@ -619,8 +726,7 @@ def replace_file_tags(dataframes,
                                                 for current_run in runs_for_filepath:
                                                     # Add current string of unformatted text from Run instance
                                                     # as a new Run instance for the new Paragraph instance
-                                                    sentence = new_paragraph.add_run(current_run.text,
-                                                                                     style=current_run.style)
+                                                    sentence = new_paragraph.add_run(current_run.text)
                                                     setAttributes(sentence, current_run)
                                                     # sen.style=current_run.style
                                                 # Now add text for the remainder after the last tag
@@ -779,8 +885,10 @@ def preprocess_files(input_word_filepath, dataframes,iterator):  # CONFIRMED3
         # Replace [[IF...]] tags in input Word file
         # --------------------------------------------------------------
 
-        # print("WARNING: skipping IF tag parsing and replacement")
-
+        print("WARNING: skipping IF tag parsing and replacement")
+        #  New logic for IF ELSE nested tags replacement which strictly assumes that IF or ELSE tag should completely fall inside a single run as per the original specs
+        #  of the document.
+        # replace_nested_tags(dataframes,filepath,iterator)
         # replace [[IF...]] tags as appropropriate for iterator
         # GLOBAL values and store result at filepath
         # find_and_replace_if_tags(dataframes,
@@ -928,7 +1036,6 @@ def read_excel(filepath):  # CONFIRMED
     else:
         # Worksheet names were not complete and correct to exit reflecting error
         return 0
-
 
 def replace_text_tags(list_df, document, index, target_file):
     """
@@ -1344,9 +1451,9 @@ def process_document(dataframes, preprocessed_document, index, target_file, inpu
     # tags with appropriate conditional content
 
     print("Warning: IF tag processing is commented out")
-    # NOTE - commenting this out because [[IF...]] tag processing
-    # is not ready
-
+    #  New logic for IF ELSE nested tags replacement which strictly assumes that IF or ELSE tag should completely fall inside a single run as per the original specs
+    #  of the document.
+    # replace_nested_tags(dataframes,filepath,iterator)
 
     preprocessed_document = Document(input_file)
 
