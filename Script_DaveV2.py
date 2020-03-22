@@ -283,28 +283,31 @@ def identify_unformatted_runs_from_document(document):  # CONFIRMED2
 
     # Create an empty list of informatted strings to which
     # unformatted strings extracted from Run instances will be added
-    unformatted_text_from_runs = []
-
+    para_count=0
+    para_runs={}
     # Iterate through each Paragraph and Table instance
     # within the provided Document instance
     for block in iter_block_items(document):
         # Only process content for Paragraph instances
         if isinstance(block, Paragraph):
+            para_count=para_count+1
             # Retrieve unformatted text from Paragraph
             # (no longer used due to coding change)
             # block_text=block.text
 
             # print('bt ',block_text)
+            run_list=[]
 
             # Iterate through each Run instance within the Block
             for run in block.runs:
                 # Add unformatted text for current Run instance to list
                 # of unformatted text instances
-                unformatted_text_from_runs.append(run)
-
+                run_list.append(run)
+            para_runs[para_count]=run_list
     # Return string containing all unformatted text from
     # block (which can only be a Paragraph)
-    return unformatted_text_from_runs
+    return para_runs
+
 
 def setAttributes(sentence,current_run):
     # sentence=current_run
@@ -426,6 +429,19 @@ def setAttributes(sentence,current_run):
     sentence.font.color.theme_color=current_run.font.color.theme_color
     # sentence.font.color.type = current_run.font.color.type
 
+def add_paragraph_after(paragraph,runs):
+    """Insert a new paragraph after the given paragraph."""
+    new_p = OxmlElement("w:p")
+    paragraph._p.addnext(new_p)
+    new_paragraph = Paragraph(new_p, paragraph._parent)
+    for run in runs:
+        # Add the current unformatted text, as a Run
+        # instance, to the new Paragraph instance
+        sentence=new_paragraph.add_run(run.text)
+        setAttributes(sentence,run)
+    return new_paragraph
+
+
 
 def replace_file_tags(dataframes,
                       document,
@@ -498,7 +514,7 @@ def replace_file_tags(dataframes,
                 # Create new Paragraph instance for new paragraph element
                 # and link instance to block's parent element
                 new_paragraph = Paragraph(new_p, block._parent)
-
+                para = new_paragraph
                 # Iterate through runs within block (paragraph)
                 for run in block.runs:
 
@@ -574,22 +590,15 @@ def replace_file_tags(dataframes,
                                     # Retrieve a list of strings, reflecting unformatted
                                     # text from all Run instances for the Word file at the
                                     # provided filepath
-                                    runs_for_filepath = filepaths_and_corresponding_lists_of_unformatted_strings[filepath]
+                                    para_runs_for_filepath = filepaths_and_corresponding_lists_of_unformatted_strings[filepath]
 
                                     # ------------------------------------------------------
                                     # Insert text for identified file into spot of previous
                                     # [[FILE:...]] tag
                                     # ------------------------------------------------------
-
-                                    # Iterate through all runs for file to insert
-                                    for current_run in runs_for_filepath:
-                                        # Add the current unformatted text, as a Run
-                                        # instance, to the new Paragraph instance
-                                        sentence=new_paragraph.add_run(current_run.text)
-                                        setAttributes(sentence,current_run)
-
-
-
+                                    for para_count,runs in para_runs_for_filepath.items():
+                                        para=add_paragraph_after(para,runs)
+                                    # # Iterate through all runs for file to insert
                                     # ------------------------------------------------------
                                     # Add content after the [[FILE...]] tag, in the original
                                     # document, after the content that replaced the [[FILE...]]
@@ -612,7 +621,7 @@ def replace_file_tags(dataframes,
                         # current Run instance and add the created Run instance
                         # to the paragraph
                         # Question: are we losing formatting here?
-                        sentence= new_paragraph.add_run(run.text)
+                        sentence= para.add_run(run.text)
                         setAttributes(sentence,run)
                 # Remove current block from parent entity's container of
                 # block instances
@@ -664,7 +673,7 @@ def replace_file_tags(dataframes,
                             # Create new Paragraph instance for new_p with
                             # paragraph's parent as parent element
                             new_para = Paragraph(new_p, paragraph._parent)
-
+                            para=new_para
                             # Iterate through each Run instance within a
                             # Paragraph instance
                             for run in paragraph.runs:
@@ -722,17 +731,12 @@ def replace_file_tags(dataframes,
                                                 runs_for_filepath = \
                                                 filepaths_and_corresponding_lists_of_unformatted_strings[filepath]
 
-                                                # Iterate through strings of unformatted text for Run instances
-                                                for current_run in runs_for_filepath:
-                                                    # Add current string of unformatted text from Run instance
-                                                    # as a new Run instance for the new Paragraph instance
-                                                    sentence = new_paragraph.add_run(current_run.text)
-                                                    setAttributes(sentence, current_run)
+                                                for para, runs in para_runs_for_filepath.items():
+                                                    add_paragraph_after(para, runs)
                                                     # sen.style=current_run.style
                                                 # Now add text for the remainder after the last tag
-                                                sentence = new_para.add_run(text_add)
+                                                sentence = para.add_run(text_add)
                                                 setAttributes(sentence, run)
-
                                             except Exception as e:
                                                 # Handle error - no identifier present in Globals workbook
                                                 new_para.add_run(tag)
@@ -742,7 +746,7 @@ def replace_file_tags(dataframes,
                                         else:
                                             print('Error the Tag {} is not present in the run.'.format(tag))
                                 else:
-                                    sentence = new_paragraph.add_run(run.text)
+                                    sentence = para.add_run(run.text)
                                     setAttributes(sentence, run)
                             # Set instance flag reflecting that [[FILE...]] tag
                             # replacement has occurred
